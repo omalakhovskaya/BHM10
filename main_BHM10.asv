@@ -155,12 +155,11 @@ nu_psi1 = 3;
 prior_psi1 = student_prior(z1,c_psi1,sigma_psi1,nu_psi1);
 %plot(z1,prior_psi1,'b','linewidth',3)
 
-% psi2: short-run production elasticity of inventory demand (sign:
-%       unrestricted)
-c_psi1 = 0;
-sigma_psi1 = 0.5;
-nu_psi1 = 3;
-prior_psi1 = student_prior(z1,c_psi1,sigma_psi1,nu_psi1);
+% psi2: 
+c_psi2 = 0;
+sigma_psi2 = 0.5;
+nu_psi2 = 3;
+prior_psi2 = student_prior(z1,c_psi2,sigma_psi2,nu_psi2);
 %plot(z1,prior_psi1,'b','linewidth',3)
 
 
@@ -277,6 +276,23 @@ param=[c_alpha_qp;sigma_alpha_qp;nu_alpha_qp;...
 
  f_anon = @(theta) -getposterior10(theta,param,S,m,yyy1,yyy2,Pinv,Xtilde,mu,n,c,kappa,T1,T2,omega_tildeT);
 
+ a_old=[-c_alpha_qp; -c_alpha_yp; -c_beta_qy; -c_beta_qp; -(alpha_k/(alpha_k+beta_k))^(-1); ...
+    rho-c_psi1; -rho*c_beta_qy - c_psi2;  -rho*c_beta_qp - c_psi3; -rho*(alpha_k/(alpha_k+beta_k))^(-1)+1;...
+    phi-tau*c_psi1 - c_gamma1; -phi*c_beta_qy-tau*c_psi2 - c_gamma2;   -phi*c_beta_qp-tau*c_psi3- c_gamma3;...
+   -phi*(alpha_k/(alpha_k+beta_k))^(-1)+ tau - c_gamma4]
+
+A_old = [1 0 theta(1) 0 0; ...
+    0 1 theta(2) 0 0; ...
+    1 theta(3:4)' theta(5) 0;...
+    theta(6:9)'  0;...
+    theta(10:13)' 1];
+
+D_old = eye(5)
+[A_tilde_old, ~,~,~] = forward_operator(A_old,D_old) 
+
+
+test_a =  getposterior10(A_old,param,S,m,yyy1,yyy2,Pinv,Xtilde,mu,n,c,kappa,T1,T2,omega_tildeT)
+%{
 flag = 0; 
 while flag ==0 
     if random == 1
@@ -285,8 +301,8 @@ while flag ==0
          % elements in A and L)
     A_old=[-c_alpha_qp; -c_alpha_yp; -c_beta_qy; -c_beta_qp; -(alpha_k/(alpha_k+beta_k))^(-1); ...
     rho-c_psi1; -rho*c_beta_qy - c_psi2;  -rho*c_beta_qp - c_psi3; -rho*(alpha_k/(alpha_k+beta_k))^(-1)+1;...
-    phi-tau*c_psi1 - c_gamma_1; -phi*c_beta_qy-tau*c_psi2 - c_gamma_2;   -phi*c_beta_qp-tau*c_psi3- c_gamma_3;...
-    -phi*(alpha_k/(alpha_k+beta_k))^(-1)+ tau - c_gamma_4]
+    phi-tau*c_psi1 - c_gamma1; -phi*c_beta_qy-tau*c_psi2 - c_gamma2;   -phi*c_beta_qp-tau*c_psi3- c_gamma3;...
+    -phi*(alpha_k/(alpha_k+beta_k))^(-1)+ tau - c_gamma4]
     flag = 1; 
     end 
 save A_old0_8 A_old 
@@ -311,7 +327,7 @@ else
 end
 posteriorOLD=-val_max;
 A_old = theta_max; 
-
+%}
 %{
 
 
