@@ -55,6 +55,7 @@ xsi=0.4;        %tuning parameter to achieve a target acceptance rate of around 
                 %0.4 an appropriate value for data4 and da
                 
 c = 12;            % number of nonzero parameters of A that we have prior information about  
+total_param = 18; 
 kappa=2;                          %prior 
 
 %W=xsi*eye(c);     %variance of RW-MH  
@@ -254,7 +255,7 @@ Xtilde=[sqrt(mu)*xxx1;xxx2;Pinv];
 M_star=inv(Xtilde'*Xtilde);
 rho = 0.5;
 phi = 0.5;
-tau = 0.5; 
+tau = 0.5;
  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Get starting values for A (transformed matrix)
@@ -267,57 +268,68 @@ param=[c_alpha_qp;sigma_alpha_qp;nu_alpha_qp;...
        c_beta_qp;sigma_beta_qp;nu_beta_qp; ...
        alpha_k;beta_k;...
        c_psi1;sigma_psi1;nu_psi1;...
+       c_psi2;sigma_psi2;nu_psi2; ...
        c_psi3;sigma_psi3;nu_psi3; ...
        c_gamma1; sigma_gamma1; nu_gamma1;...
        c_gamma2; sigma_gamma2; nu_gamma2;... 
        c_gamma3; sigma_gamma3; nu_gamma3;... 
-       c_gamma4; sigma_gamma4; nu_gamma4;...
-       rho; phi; tau] 
-
+       c_gamma4; sigma_gamma4; nu_gamma4]
+       
+%rho; phi; tau 
+  
+ %D_0 = diag(abs(randn(5,1)))
  f_anon = @(theta) -getposterior10(theta,param,S,m,yyy1,yyy2,Pinv,Xtilde,mu,n,c,kappa,T1,T2,omega_tildeT);
 
- a_old=[-c_alpha_qp; -c_alpha_yp; -c_beta_qy; -c_beta_qp; -(alpha_k/(alpha_k+beta_k))^(-1); ...
-    rho-c_psi1; -rho*c_beta_qy - c_psi2;  -rho*c_beta_qp - c_psi3; -rho*(alpha_k/(alpha_k+beta_k))^(-1)+1;...
-    phi-tau*c_psi1 - c_gamma1; -phi*c_beta_qy-tau*c_psi2 - c_gamma2;   -phi*c_beta_qp-tau*c_psi3- c_gamma3;...
-   -phi*(alpha_k/(alpha_k+beta_k))^(-1)+ tau - c_gamma4]
-
-A_old = [1 0 a_old(1) 0 0; ...
-    0 1 a_old(2) 0 0; ...
-    1 a_old(3:4)' a_old(5) 0;...
-    a_old(6:9)'  0;...
-    a_old(10:13)' 1];
-
-D_old = diag(abs(randn(5,1)))
-[A_tilde_old, ~,~,~] = forward_operator(A_old,D_old) 
-
-x = [-A_tilde_old(1,3);-A_tilde_old(2,3);-A_tilde_old(3,2);-A_tilde_old(3,3);-1/A_tilde_old(3,4);...
-    -A_tilde_old(4,1);-A_tilde_old(4,2);-A_tilde_old(4,3);-A_tilde_old(5,1);-A_tilde_old(5,2);...
-    -A_tilde_old(5,3);-A_tilde_old(5,4)]
-
-test_a =  getposterior10(a_old,param,S,m,yyy1,yyy2,Pinv,Xtilde,mu,n,c,kappa,T1,T2,omega_tildeT,x)
-%{
 flag = 0; 
-while flag ==0 
+%while flag ==0
+    for k = 1:30
     if random == 1
     random_generator;  %Modified version gets random values to check up the uniqueness of local maximum. 
     else % Set arbitrary initial values for elements of A (prior mode/mean of
          % elements in A and L)
-    A_old=[-c_alpha_qp; -c_alpha_yp; -c_beta_qy; -c_beta_qp; -(alpha_k/(alpha_k+beta_k))^(-1); ...
+     
+         
+    a_old=[-c_alpha_qp; -c_alpha_yp; -c_beta_qy; -c_beta_qp; -(alpha_k/(alpha_k+beta_k))^(-1); ...
     rho-c_psi1; -rho*c_beta_qy - c_psi2;  -rho*c_beta_qp - c_psi3; -rho*(alpha_k/(alpha_k+beta_k))^(-1)+1;...
     phi-tau*c_psi1 - c_gamma1; -phi*c_beta_qy-tau*c_psi2 - c_gamma2;   -phi*c_beta_qp-tau*c_psi3- c_gamma3;...
     -phi*(alpha_k/(alpha_k+beta_k))^(-1)+ tau - c_gamma4]
     flag = 1; 
     end 
+    
+A_old = [1 0 a_old(1) 0 0; ...
+    0 1 a_old(2) 0 0; ...
+    1 a_old(3:4)' a_old(5) 0;...
+    a_old(6:9)'  0;...
+    a_old(10:13)' 1];    
+    
+omega0 = A_old*S*A_old';
+d_old= zeros(n,1);
+tau_old=kappa*omega0;
+         for jj = 1:n
+             d_old(jj) = inv(gamrnd(kappa,1/tau_old(jj)));
+         end 
+  D0 = diag(d_old);
+        
+
 save A_old0_8 A_old 
-   
-options = optimset('LargeScale','off','MaxFunEvals',5000, 'Display', 'iter');
-[theta_max,val_max,exitm,~,~,HM] = fminunc(f_anon,A_old,options);
+
+A = [];
+b = [];
+Aeq = [];
+beq = [];
+nonlincon = [];
+lb = [-Inf,0,-Inf,0,-Inf,-Inf,-Inf,-Inf,-Inf,-Inf,-Inf...
+    -Inf, -Inf,0,0,0,0,0];
+ub = [0,Inf,0,Inf,-1,Inf,Inf,Inf,Inf,Inf,Inf,Inf,...
+    Inf,1,1,1,1,1];
+options = optimset('LargeScale','off','MaxFunEvals',100, 'Display', 'iter');
+[theta_max,val_max,exitm,~,~,~,HM] = fmincon(f_anon,[a_old;d_old],A,b,Aeq,beq,lb,ub,nonlincon,options);
 theta_max
 
-if theta_max(1)>0 && theta_max(2)<0 && theta_max(3)>0 && theta_max(4)<0 && ...
-        theta_max(5)>0 && theta_max(5)<1 && theta_max(8)>0 && theta_max(8)<1   
-        flag = 1; 
-end 
+%if theta_max(1)>0 && theta_max(2)<0 && theta_max(3)>0 && theta_max(4)<0 && ...
+ %       theta_max(5)>0 && theta_max(5)<1 && theta_max(8)>0 && theta_max(8)<1   
+  %      flag = 1; 
+%end 
 end 
 
 
@@ -326,31 +338,35 @@ end
 if min(eig(inv(HM))) > 0
      PH = chol(inv(HM))';
 else
-     PH = eye(c);
+     PH = eye(total_param);
 end
 posteriorOLD=-val_max;
-A_old = theta_max; 
-%}
+a_old = theta_max(1:c+1); 
+
+A_old = [1 0 a_old(1) 0 0; ...
+    0 1 a_old(2) 0 0; ...
+    1 a_old(3:4)' a_old(5) 0;...
+    a_old(6:9)'  0;...
+    a_old(10:13)' 1];   
+D_old = getDmatrix(mu,yyy1,yyy2, kappa, omega, S,AA,Pinv,m,Xtilde,Ytilde, n, T1, T2) 
+
 %{
-
-
-
 % RW-MH algorithm 
 naccept=0;
 %count=1;
 
 % Store posterior distributions (after burn-in)
-A_post_m=zeros(c,ndraws-nburn);
-A_post=zeros(n,n,ndraws-nburn);
+a_post_tilde=zeros(c,ndraws-nburn);
+A_post_tilde=zeros(n,n,ndraws-nburn);
 B_post=zeros(n,n*nlags+1,ndraws-nburn);
 D_post=zeros(n,n,ndraws-nburn);
 G_post = zeros(n,n,ndraws-nburn);
-D_star_post = zeros(n,n,ndraws-nburn);
+D_post_tilde = zeros(n,n,ndraws-nburn);
 
-posteriors_all7 = zeros(ndraws, 1); 
-A_new_all8 = zeros(ndraws,c);
-A_old_all8 = zeros(ndraws,c);
-increments_all7 = zeros(ndraws,c);
+posteriors_all_10 = zeros(ndraws, 1); 
+a_new_all_10 = zeros(ndraws,c);
+a_old_all_10 = zeros(ndraws,c);
+increments_all_10 = zeros(ndraws,c);
   
 for count = 1:ndraws 
       if (count/10000) == floor(count/10000)
@@ -361,22 +377,22 @@ for count = 1:ndraws
     % STEP 4a: Generate draw for A from the RW candidate density %
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %increment = xsi*PH*randn(c,1)/sqrt(0.5*(randn(1)^2 + randn(1)^2));
-    increment = xsi*PH*randn(c,1);
+    increment = xsi*PH*randn(c+1,1);
 
-    A_new=A_old+increment;    % fat tails
-    A_new_all8(count,:) = A_new';
-    A_old_all8(count,:) = A_old';
-    increments_all7(count,:) = increment';
+    a_new=a_old+increment;    % fat tails
+    A_new_all_10(count,:) = a_new';
+    A_old_all_10(count,:) = a_old';
+    increments_all_10(count,:) = increment';
     
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % STEP 4b: Evaluate posterior at new draw %
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % impose signs/ranges
-    if A_new(1)>0 && A_new(2)<0 && A_new(3)>0 && A_new(4)<0 && ...
-            A_new(5)>0 && A_new(5)<1 && A_new(8)>0 && A_new(8)<1            
-           
-       posteriorNEW = getposterior8(A_new,param,S,m,yyy1,yyy2,Pinv,Xtilde,mu,n,c,kappa,T1,T2,omega_tildeT);
-       posteriors_all8(count) = posteriorNEW;
+    if a_new(1)<=0 && a_new(2)>=0 && A_new(3)<=0 && A_new(4)>=0 && ...
+            A_new(5)<=-1 
+        
+       posteriorNEW= getposterior10(a_new,param,S,m,yyy1,yyy2,Pinv,Xtilde,mu,n,c,kappa,T1,T2,omega_tildeT);
+       posteriors_all_10(count) = posteriorNEW;
        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
        % STEP 5: Compute acceptance probability %
        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -387,6 +403,8 @@ for count = 1:ndraws
           posteriorOLD=posteriorNEW;
           naccept=naccept+1;          %count the number of acceptances
        end
+       [A_tilde, D_tilde,dstar,G] = forward_operator(Anew,Dold); 
+
        end
     
     if count>nburn
@@ -410,19 +428,9 @@ for count = 1:ndraws
          % STEP 7: Generate a draw for d(ii)^-1 from independent gamma %
          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
          
-         Ytilde = [sqrt(mu)*yyy1*AA';yyy2*AA';Pinv'*m'];
-         mstar = (Xtilde'*Xtilde)\(Xtilde'*Ytilde);
-         omega=AA*S*AA';
-         
-         [~, tau_mh] = gettau3(kappa,omega,Ytilde,Xtilde,n);
-         d= zeros(n,1);
-         kappastar = kappa+(mu*T1+T2)/2;
-         for jj = 1:n
-             d(jj) = inv(gamrnd(kappastar,1/tau_mh(jj)));
-         end 
-         DD = diag(d);
-                D_post(:,:,count-nburn)=DD;
-                D_star_post(:,:,count-nburn) = inv(P)*DD*inv(P'); % added in this version
+        DD = getDmatrix(mu,yyy1,yyy2, kappa, omega, S,AA,Pinv,m,Xtilde,Ytilde, n, T1, T2) 
+        D_post(:,:,count-nburn)=DD;
+        D_star_post(:,:,count-nburn) = inv(P)*DD*inv(P'); % added in this version
                 
          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
          % STEP 8: Generate a draw for b(i) from multivariate normal %
